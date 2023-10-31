@@ -26,6 +26,9 @@ from composer.utils.file_helpers import (FORMAT_NAME_WITH_DIST_AND_TIME_TABLE, f
 from composer.utils.misc import is_model_deepspeed, using_torch_2
 from composer.utils.object_store import ObjectStore
 
+import torch_xla.experimental.pjrt as pjrt
+import torch_xla.core.xla_model as xm
+
 if TYPE_CHECKING:
     from composer.core import AlgorithmPass, State
     from composer.loggers import Logger, LoggerDestination
@@ -815,7 +818,10 @@ def save_checkpoint(
         log_msg = f'Saving sharded checkpoints to {save_filename}...' if state.fsdp_sharded_state_dict_enabled else f'Saving monolithic checkpoint to {save_filename}'
         with open(save_filename, 'wb') as f:
             log.debug(log_msg)
-            torch.save(state_dict, f)
+            if pjrt.using_pjrt():
+                xm.save(state_dict, f)
+            else:
+                torch.save(state_dict, f)
 
         log.debug(f'Global rank 0 done saving checkpoint to disk at {save_filename}.')
 

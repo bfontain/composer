@@ -167,7 +167,11 @@ def format_log_data_value(data: Any) -> str:
         return f'{data:.4f}'
     if isinstance(data, torch.Tensor):
         if data.shape == () or reduce(operator.mul, data.shape, 1) == 1:
-            return format_log_data_value(data.cpu().item())
+            if pjrt.using_pjrt():
+                'PJRT tensors are not supported by wandb'
+                return 'Tensor of shape ' + str(data.shape)
+            else:
+                return format_log_data_value(data.cpu().item())
         return 'Tensor of shape ' + str(data.shape)
     if isinstance(data, collections.abc.Mapping):
         output = ['{ ']

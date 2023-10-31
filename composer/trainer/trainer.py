@@ -56,6 +56,7 @@ from composer.utils import (ExportFormat, MissingConditionalImportError, ObjectS
                             maybe_create_remote_uploader_downloader_from_uri, model_eval_mode, parse_uri,
                             reproducibility, using_torch_2)
 from composer.utils.misc import is_model_deepspeed
+import torch_xla.experimental.pjrt as pjrti
 
 if is_tpu_installed():
     import torch_xla.core.xla_model as xm
@@ -895,7 +896,10 @@ class Trainer:
 
         # compile config for PyTorch 2.0 or higher
         compile_config: Optional[Dict[str, Any]] = None,
+
+        index: Optional[int] = None,
     ):
+        self.index = index
 
         self.auto_log_hparams = auto_log_hparams
         self.python_log_level = python_log_level
@@ -2058,13 +2062,13 @@ class Trainer:
                         self.state.scaler.update()
 
                     # total_loss_dict can be None if gradient scaling failed
-                    if total_loss_dict is not None:
-                        map_collection(total_loss_dict, dist.all_reduce)
-                        total_loss_dict = {
-                            k: loss.cpu().item() / dist.get_world_size() for k, loss in total_loss_dict.items()
-                        }
-                        self.state.total_loss_dict = total_loss_dict
-                        self.logger.log_metrics(total_loss_dict)
+                    #if total_loss_dict is not None:
+                    #    map_collection(total_loss_dict, dist.all_reduce)
+                    #    total_loss_dict = {
+                    #        k: loss.cpu().item() / dist.get_world_size() for k, loss in total_loss_dict.items()
+                    #    }
+                    #    self.state.total_loss_dict = total_loss_dict
+                    #    self.logger.log_metrics(total_loss_dict)
 
                     # The scheduler step.step() and compute_and_log_metrics() are going to be included in the
                     # next batch's wall clock time. The time accumulation must be done here so schedulers
@@ -2343,11 +2347,11 @@ class Trainer:
                 microbatch_loss_dict = self._train_microbatch(use_grad_scaling, current_batch_size, is_final_microbatch)
 
                 # Aggregate each loss in microbatch_loss_dict into total_loss_dict
-                for k, microbatch_loss in microbatch_loss_dict.items():
-                    loss_key = f'loss/train/{k}'
-                    if loss_key not in total_loss_dict:
-                        total_loss_dict[loss_key] = self.state.device.tensor_to_device(torch.zeros(size=(1,)))
-                    total_loss_dict[loss_key] += microbatch_loss
+                #for k, microbatch_loss in microbatch_loss_dict.items():
+                #    loss_key = f'loss/train/{k}'
+                #    if loss_key not in total_loss_dict:
+                #        total_loss_dict[loss_key] = self.state.device.tensor_to_device(torch.zeros(size=(1,)))
+                #    total_loss_dict[loss_key] += microbatch_loss
 
             # Restore batch
             self.state.batch = current_batch
@@ -2468,8 +2472,11 @@ class Trainer:
 
             else:
                 # Scale loss based on the number of samples in the microbatch to maintain gradient numerics
-                microbatch_loss.mul_(microbatch_num_samples / current_batch_size)
-                microbatch_loss.backward(create_graph=self._backwards_create_graph)
+                if pjrt.using_pjrt():
+                    microbatch_loss.backward()
+                else:
+                    microbatch_loss.mul_(microbatch_num_samples / current_batch_size)
+                    microbatch_loss.backward(create_graph=self._backwards_create_graph)
 
             self.engine.run_event(Event.AFTER_BACKWARD)
 

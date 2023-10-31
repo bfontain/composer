@@ -47,6 +47,10 @@ import torch.utils.data
 
 from composer.utils.device import get_device, is_hpu_installed
 
+import torch_xla.experimental.pjrt as pjrt
+import torch_xla.core.xla_model as xm
+import torch_xla.experimental.pjrt_backend
+
 if TYPE_CHECKING:
     from composer.devices import Device
 
@@ -182,6 +186,23 @@ def _get_distributed_config_var(
     if not dist.is_available():
         return default
 
+    
+    if pjrt.using_pjrt():
+        if env_var == 'WORLD_SIZE':
+            dist_value = xm.xrt_world_size()
+	elif env_var == 'LOCAL_RANK':
+            dist_value = xm.get_local_ordinal()
+        elif env_var == 'RANK':
+            dist_value = xm.get_ordinal()
+        elif env_var == 'LOCAL_WORLD_SIZE':
+            dist_value = 4 # Need to get this programmatically
+        elif env_var == 'NODE_RANK':
+            dist_value = xm.get_ordinal() // 4
+        if fetch_fn_name is not None and dist.is_initialized():
+            fetched_value = int(getattr(dist, fetch_fn_name)())
+            if fetched_value != dist_value:
+                raise RuntimeError(f'Configured Torch distribution value does not agree with XLA's {env_var}, {dist_value}, {env_value}')
+
     if dist.is_initialized() and fetch_fn_name is not None:
         dist_value = int(getattr(dist, fetch_fn_name)())
         if env_var in os.environ:
@@ -306,8 +327,11 @@ def all_reduce(
         None: ``tensor`` is modified in-place.
     """
     if dist.is_available() and dist.is_initialized():
-        reduce_op = getattr(dist.ReduceOp, reduce_operation.upper())
-        dist.all_reduce(tensor, op=reduce_op)
+        if pjrt.using_pjrt():
+            xm.all_reduce(reduce_operation.lower(), tensor)
+        else:
+            reduce_op = getattr(dist.ReduceOp, reduce_operation.upper())
+            dist.all_reduce(tensor, op=reduce_op)
         return
     world_size = get_world_size()
     if world_size == 1:
@@ -331,7 +355,8 @@ def broadcast(tensor: torch.Tensor, src: int) -> None:
         src (int): Source rank
     """
     if dist.is_available() and dist.is_initialized():
-        dist.broadcast(tensor, src)
+        if not pjrt.using_pjrt():
+            dist.broadcast(tensor, src)
         return
     world_size = get_world_size()
     if world_size == 1:
@@ -361,7 +386,8 @@ def broadcast_object_list(object_list: List[Any], src: int = 0) -> None:
         None:  ``object_list`` will be modified in-place and set to values of ``object_list`` from the ``src`` rank.
     """
     if dist.is_available() and dist.is_initialized():
-        dist.broadcast_object_list(object_list, src)
+        if not pjrt.using_pjrt():
+            dist.broadcast_object_list(object_list, src)
         # torch.distributed will replace the None's in obj_gather_list with the gathered objects on rank 0
         # or will just be None on non-rank-0
         return
@@ -388,8 +414,12 @@ def all_gather(tensor: torch.Tensor) -> Sequence[torch.Tensor]:
     """
     if dist.is_available() and dist.is_initialized():
         obj_gather_list = [torch.zeros_like(tensor) for _ in range(get_world_size())]
-        dist.all_gather(obj_gather_list, tensor)
-        return obj_gather_list
+        if pjrt.using_pjrt():
+            obj_gathered = xm.all_gather(tensor, obj_gather_list)
+            return obj_gathered
+        else:
+            dist.all_gather(obj_gather_list, tensor)
+            return obj_gather_list
     world_size = get_world_size()
     if world_size == 1:
         return [tensor]
@@ -519,7 +549,9 @@ def initialize_dist(device: Union[str, Device], timeout: float = 300.0):
 
     dist_env_vars_match_defaults = all(os.environ.get(k, v) == v for (k, v) in dist_env_var_defaults.items())
 
-    if dist_env_vars_match_defaults:
+    if pjrt.using_pjrt():
+        dist.init_process_group('xla', init_method='xla://')
+    elif dist_env_vars_match_defaults:
         # Fill in the remaining single-rank variables
         os.environ.update(dist_env_var_defaults)
         dist.init_process_group(device_obj.dist_backend, store=dist.HashStore(), world_size=1, rank=0)
