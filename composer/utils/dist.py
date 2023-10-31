@@ -190,7 +190,7 @@ def _get_distributed_config_var(
     if pjrt.using_pjrt():
         if env_var == 'WORLD_SIZE':
             dist_value = xm.xrt_world_size()
-	elif env_var == 'LOCAL_RANK':
+        elif env_var == 'LOCAL_RANK':
             dist_value = xm.get_local_ordinal()
         elif env_var == 'RANK':
             dist_value = xm.get_ordinal()
