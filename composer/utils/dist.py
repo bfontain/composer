@@ -50,6 +50,7 @@ from composer.utils.device import get_device, is_hpu_installed
 import torch_xla.experimental.pjrt as pjrt
 import torch_xla.core.xla_model as xm
 import torch_xla.experimental.pjrt_backend
+import torch_xla.runtime as rt
 
 
 if TYPE_CHECKING:
