@@ -51,6 +51,7 @@ import torch_xla.experimental.pjrt as pjrt
 import torch_xla.core.xla_model as xm
 import torch_xla.experimental.pjrt_backend
 
+
 if TYPE_CHECKING:
     from composer.devices import Device
 
@@ -189,15 +190,15 @@ def _get_distributed_config_var(
     
     if pjrt.using_pjrt():
         if env_var == 'WORLD_SIZE':
-            dist_value = xm.xrt_world_size()
+            dist_value = rt.global_device_count()
         elif env_var == 'LOCAL_RANK':
-            dist_value = xm.get_local_ordinal()
+            dist_value = rt.local_ordinal()
         elif env_var == 'RANK':
-            dist_value = xm.get_ordinal()
+            dist_value = tf.global_ordinal()
         elif env_var == 'LOCAL_WORLD_SIZE':
-            dist_value = 4 # Need to get this programmatically
+            dist_value = rt.local_device_count()
         elif env_var == 'NODE_RANK':
-            dist_value = xm.get_ordinal() // 4
+            dist_value = rt.host_index()
         if fetch_fn_name is not None and dist.is_initialized():
             fetched_value = int(getattr(dist, fetch_fn_name)())
             if fetched_value != dist_value:
