@@ -194,7 +194,7 @@ def _get_distributed_config_var(
         elif env_var == 'LOCAL_RANK':
             dist_value = rt.local_ordinal()
         elif env_var == 'RANK':
-            dist_value = tf.global_ordinal()
+            dist_value = rt.global_ordinal()
         elif env_var == 'LOCAL_WORLD_SIZE':
             dist_value = rt.local_device_count()
         elif env_var == 'NODE_RANK':
