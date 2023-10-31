@@ -201,7 +201,7 @@ def _get_distributed_config_var(
         if fetch_fn_name is not None and dist.is_initialized():
             fetched_value = int(getattr(dist, fetch_fn_name)())
             if fetched_value != dist_value:
-                raise RuntimeError(f'Configured Torch distribution value does not agree with XLA's {env_var}, {dist_value}, {env_value}')
+                raise RuntimeError(f"Configured Torch distribution value does not agree with XLA's {env_var}, {dist_value}, {env_value}")
 
     if dist.is_initialized() and fetch_fn_name is not None:
         dist_value = int(getattr(dist, fetch_fn_name)())
