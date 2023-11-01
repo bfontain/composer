@@ -16,6 +16,8 @@ import torch
 
 from composer.utils import ensure_tuple, format_name_with_dist
 
+import torch_xla.runtime as rt
+
 if TYPE_CHECKING:
     from composer.core import State
     from composer.loggers.logger_destination import LoggerDestination
@@ -167,7 +169,7 @@ def format_log_data_value(data: Any) -> str:
         return f'{data:.4f}'
     if isinstance(data, torch.Tensor):
         if data.shape == () or reduce(operator.mul, data.shape, 1) == 1:
-            if pjrt.using_pjrt():
+            if rt.using_pjrt():
                 'PJRT tensors are not supported by wandb'
                 return 'Tensor of shape ' + str(data.shape)
             else:

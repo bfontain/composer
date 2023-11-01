@@ -47,10 +47,8 @@ import torch.utils.data
 
 from composer.utils.device import get_device, is_hpu_installed
 
-import torch_xla.pjrt as pjrt
-import torch_xla.core.xla_model as xm
 import torch_xla.runtime as rt
-
+import torch_xla.core.xla_model as xm
 
 if TYPE_CHECKING:
     from composer.devices import Device
@@ -188,7 +186,7 @@ def _get_distributed_config_var(
         return default
 
     
-    if pjrt.using_pjrt():
+    if rt.using_pjrt():
         if env_var == 'WORLD_SIZE':
             dist_value = rt.global_device_count()
         elif env_var == 'LOCAL_RANK':
@@ -328,7 +326,7 @@ def all_reduce(
         None: ``tensor`` is modified in-place.
     """
     if dist.is_available() and dist.is_initialized():
-        if pjrt.using_pjrt():
+        if rt.using_pjrt():
             xm.all_reduce(reduce_operation.lower(), tensor)
         else:
             reduce_op = getattr(dist.ReduceOp, reduce_operation.upper())
@@ -356,7 +354,7 @@ def broadcast(tensor: torch.Tensor, src: int) -> None:
         src (int): Source rank
     """
     if dist.is_available() and dist.is_initialized():
-        if not pjrt.using_pjrt():
+        if not rt.using_pjrt():
             dist.broadcast(tensor, src)
         return
     world_size = get_world_size()
@@ -387,7 +385,7 @@ def broadcast_object_list(object_list: List[Any], src: int = 0) -> None:
         None:  ``object_list`` will be modified in-place and set to values of ``object_list`` from the ``src`` rank.
     """
     if dist.is_available() and dist.is_initialized():
-        if not pjrt.using_pjrt():
+        if not rt.using_pjrt():
             dist.broadcast_object_list(object_list, src)
         # torch.distributed will replace the None's in obj_gather_list with the gathered objects on rank 0
         # or will just be None on non-rank-0
@@ -415,7 +413,7 @@ def all_gather(tensor: torch.Tensor) -> Sequence[torch.Tensor]:
     """
     if dist.is_available() and dist.is_initialized():
         obj_gather_list = [torch.zeros_like(tensor) for _ in range(get_world_size())]
-        if pjrt.using_pjrt():
+        if rt.using_pjrt():
             obj_gathered = xm.all_gather(tensor, obj_gather_list)
             return obj_gathered
         else:
@@ -550,7 +548,7 @@ def initialize_dist(device: Union[str, Device], timeout: float = 300.0):
 
     dist_env_vars_match_defaults = all(os.environ.get(k, v) == v for (k, v) in dist_env_var_defaults.items())
 
-    if pjrt.using_pjrt():
+    if rt.using_pjrt():
         dist.init_process_group('xla', init_method='xla://')
     elif dist_env_vars_match_defaults:
         # Fill in the remaining single-rank variables

@@ -56,7 +56,7 @@ from composer.utils import (ExportFormat, MissingConditionalImportError, ObjectS
                             maybe_create_remote_uploader_downloader_from_uri, model_eval_mode, parse_uri,
                             reproducibility, using_torch_2)
 from composer.utils.misc import is_model_deepspeed
-import torch_xla.pjrt as pjrt
+import torch_xla.runtime as rt
 
 if is_tpu_installed():
     import torch_xla.core.xla_model as xm
@@ -2472,7 +2472,7 @@ class Trainer:
 
             else:
                 # Scale loss based on the number of samples in the microbatch to maintain gradient numerics
-                if pjrt.using_pjrt():
+                if rt.using_pjrt():
                     microbatch_loss.backward()
                 else:
                     microbatch_loss.mul_(microbatch_num_samples / current_batch_size)
