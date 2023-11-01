@@ -123,8 +123,8 @@ def sigterm_handler(signal, frame):
     sys.exit(128 + signal)
 
 
-signal.signal(signal.SIGTERM, sigterm_handler)
-signal.signal(signal.SIGINT, sigterm_handler)
+#signal.signal(signal.SIGTERM, sigterm_handler)
+#signal.signal(signal.SIGINT, sigterm_handler)
 
 
 def _get_default_passes():
