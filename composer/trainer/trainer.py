@@ -56,7 +56,7 @@ from composer.utils import (ExportFormat, MissingConditionalImportError, ObjectS
                             maybe_create_remote_uploader_downloader_from_uri, model_eval_mode, parse_uri,
                             reproducibility, using_torch_2)
 from composer.utils.misc import is_model_deepspeed
-import torch_xla.experimental.pjrt as pjrti
+import torch_xla.pjrt as pjrt
 
 if is_tpu_installed():
     import torch_xla.core.xla_model as xm

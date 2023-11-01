@@ -26,7 +26,7 @@ from composer.utils.file_helpers import (FORMAT_NAME_WITH_DIST_AND_TIME_TABLE, f
 from composer.utils.misc import is_model_deepspeed, using_torch_2
 from composer.utils.object_store import ObjectStore
 
-import torch_xla.experimental.pjrt as pjrt
+import torch_xla.pjrt as pjrt
 import torch_xla.core.xla_model as xm
 
 if TYPE_CHECKING:
