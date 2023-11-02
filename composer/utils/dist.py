@@ -175,13 +175,6 @@ def all_gather_object_list_hpu(object_list, obj, group=None):
 class MissingEnvironmentError(Exception):
     pass
 
-
-global_world_size = None
-global_local_rank = None
-global_rank = None
-global_local_world_size = None
-global_node_rank = None
-
 def _get_distributed_config_var(
     env_var: str,
     human_name: str,
@@ -192,53 +185,23 @@ def _get_distributed_config_var(
     if not dist.is_available():
         return default
 
-    global global_world_size
-    global global_local_rank
-    global global_rank
-    global global_local_world_size
-    global global_node_rank
-    
+    if env_var in os.environ:
+        print("Using environment variable")
+        return int(os.environ[env_var])
+
+    print("Not using environment varible")
     if rt.using_pjrt():
         if env_var == 'WORLD_SIZE':
-            if global_world_size is not None:
-                dist_value = global_world_size
-                print("Using cache")
-            else:
-                print("Not using cache")
-                dist_value = rt.global_device_count()
-                global_world_size = dist_value
+            dist_value = rt.global_device_count()
         elif env_var == 'LOCAL_RANK':
-            if global_local_rank is not None:
-                print("Using cache")
-                dist_value = global_local_rank
-            else:
-                print("Not using cache")
-                dist_value = rt.local_ordinal()
-                global_local_rank = dist_value
+            dist_value = rt.local_ordinal()
         elif env_var == 'RANK':
-            if global_rank is not None:
-                print("Using cache")
-                dist_value = global_rank
-            else:
-                print("Not using cache")
-                dist_value = rt.global_ordinal()
-                global_rank = dist_value
+            dist_value = rt.global_ordinal()
         elif env_var == 'LOCAL_WORLD_SIZE':
-            if global_local_world_size is not None:
-                print("Using cache")
-                dist_value = global_local_world_size
-            else:
-                print("Not using cache")
-                dist_value = rt.local_device_count()
-                global_local_world_size = dist_value
+            dist_value = rt.local_device_count()
         elif env_var == 'NODE_RANK':
-            if global_node_rank is not None:
-                print("Using cache")
-                dist_value = global_node_rank
-            else:
-                print("Not using cache")
-                dist_value = rt.host_index()
-                global_node_rank = dist_value
+            dist_value = rt.host_index()
+        os.environ[env_var] = str(dist_value)
         if fetch_fn_name is not None and dist.is_initialized():
             fetched_value = int(getattr(dist, fetch_fn_name)())
             if fetched_value != dist_value:
@@ -253,9 +216,6 @@ def _get_distributed_config_var(
                                    f'{dist_value} for {human_name}, but environment variable '
                                    f'{env_var} has value {env_value}.')
         return dist_value
-
-    if env_var in os.environ:
-        return int(os.environ[env_var])
 
     if dist.is_initialized():
         raise MissingEnvironmentError('Torch distributed is initialized but environment variable '
