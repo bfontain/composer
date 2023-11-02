@@ -206,6 +206,7 @@ def _get_distributed_config_var(
                 fetched_value = int(getattr(dist, fetch_fn_name)())
                 if fetched_value != dist_value:
                     raise RuntimeError(f"Configured Torch distribution value does not agree with XLA's {env_var}, {dist_value}, {env_value}")
+            return dist_value
 
     if dist.is_initialized() and fetch_fn_name is not None:
         dist_value = int(getattr(dist, fetch_fn_name)())
@@ -285,6 +286,8 @@ def barrier() -> None:
 
     .. seealso:: :func:`torch.distributed.barrier`
     """
+    if rt.using_pjrt():
+        raise RuntimeError('Need for pjrt')    
     if dist.is_available() and dist.is_initialized():
         dist.barrier()
         return
@@ -330,12 +333,12 @@ def all_reduce(
     Returns:
         None: ``tensor`` is modified in-place.
     """
+    if rt.using_pjrt():
+        xm.all_reduce(reduce_operation.lower(), tensor)
+        return
     if dist.is_available() and dist.is_initialized():
-        if rt.using_pjrt():
-            xm.all_reduce(reduce_operation.lower(), tensor)
-        else:
-            reduce_op = getattr(dist.ReduceOp, reduce_operation.upper())
-            dist.all_reduce(tensor, op=reduce_op)
+        reduce_op = getattr(dist.ReduceOp, reduce_operation.upper())
+        dist.all_reduce(tensor, op=reduce_op)
         return
     world_size = get_world_size()
     if world_size == 1:
@@ -358,9 +361,10 @@ def broadcast(tensor: torch.Tensor, src: int) -> None:
             and tensor to be used to save received data otherwise.
         src (int): Source rank
     """
+    if rt.using_pjrt():
+        return
     if dist.is_available() and dist.is_initialized():
-        if not rt.using_pjrt():
-            dist.broadcast(tensor, src)
+        dist.broadcast(tensor, src)
         return
     world_size = get_world_size()
     if world_size == 1:
@@ -389,9 +393,10 @@ def broadcast_object_list(object_list: List[Any], src: int = 0) -> None:
     Returns:
         None:  ``object_list`` will be modified in-place and set to values of ``object_list`` from the ``src`` rank.
     """
+    if rt.using_pjrt():
+        return
     if dist.is_available() and dist.is_initialized():
-        if not rt.using_pjrt():
-            dist.broadcast_object_list(object_list, src)
+        dist.broadcast_object_list(object_list, src)
         # torch.distributed will replace the None's in obj_gather_list with the gathered objects on rank 0
         # or will just be None on non-rank-0
         return
@@ -416,14 +421,13 @@ def all_gather(tensor: torch.Tensor) -> Sequence[torch.Tensor]:
     Returns:
         Sequence[Tensor]: A sequence of tensors indexed by rank.
     """
+    if rt.using_pjrt():
+        obj_gathered = xm.all_gather(tensor, obj_gather_list)
+        return obj_gathered
     if dist.is_available() and dist.is_initialized():
         obj_gather_list = [torch.zeros_like(tensor) for _ in range(get_world_size())]
-        if rt.using_pjrt():
-            obj_gathered = xm.all_gather(tensor, obj_gather_list)
-            return obj_gathered
-        else:
-            dist.all_gather(obj_gather_list, tensor)
-            return obj_gather_list
+        dist.all_gather(obj_gather_list, tensor)
+        return obj_gather_list
     world_size = get_world_size()
     if world_size == 1:
         return [tensor]
@@ -445,6 +449,8 @@ def all_gather_object(obj: TObj) -> List[TObj]:
     Returns:
         List[TObj]: A list of objects indexed by rank.
     """
+    if rt.using_pjrt():
+        raise RuntimeError('Need for pjrt')
     if dist.is_available() and dist.is_initialized():
         obj_gather_list = [None for _ in range(get_world_size())]
         if is_hpu_installed():
@@ -483,7 +489,7 @@ def is_initialized():
     Returns:
         bool: Whether PyTorch distributed is initialized.
     """
-    return dist.is_initialized()
+    return rt.using_pjrt() or dist.is_initialized()
 
 
 def initialize_dist(device: Union[str, Device], timeout: float = 300.0):
@@ -632,6 +638,8 @@ def run_local_rank_zero_first():
     ranks attempt to download the dataset to the
     same location.
     """
+    if rt.using_pjrt():
+        raise RuntimeError('Need for pjrt')        
     if dist.is_available() and dist.is_initialized():
         # hold non-zero ranks until rank zero done
         if get_local_rank() != 0:
