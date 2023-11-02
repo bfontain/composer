@@ -175,16 +175,17 @@ def all_gather_object_list_hpu(object_list, obj, group=None):
 class MissingEnvironmentError(Exception):
     pass
 
+
 def _get_distributed_config_var(
     env_var: str,
     human_name: str,
     default: int,
     fetch_fn_name: Optional[str] = None,
 ) -> int:
-    print(f"_get_distributed_config_var called by {os.getpid()}")
     if not dist.is_available():
         return default
 
+    
     if rt.using_pjrt():
         if env_var in ['WORLD_SIZE', 'LOCAL_RANK', 'RANK', 'LOCAL_WORLD_SIZE', 'NODE_RANK']:
             if env_var in os.environ:
@@ -219,7 +220,7 @@ def _get_distributed_config_var(
         return dist_value
 
     if env_var in os.environ:
-        return int(os.environ[env_var])        
+        return int(os.environ[env_var])
 
     if dist.is_initialized():
         raise MissingEnvironmentError('Torch distributed is initialized but environment variable '
