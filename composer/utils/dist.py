@@ -188,6 +188,7 @@ def _get_distributed_config_var(
     default: int,
     fetch_fn_name: Optional[str] = None,
 ) -> int:
+    print(f"_get_distributed_config_var called by {os.getpid()}")
     if not dist.is_available():
         return default
 
@@ -201,31 +202,41 @@ def _get_distributed_config_var(
         if env_var == 'WORLD_SIZE':
             if global_world_size is not None:
                 dist_value = global_world_size
+                print("Using cache")
             else:
+                print("Not using cache")
                 dist_value = rt.global_device_count()
                 global_world_size = dist_value
         elif env_var == 'LOCAL_RANK':
             if global_local_rank is not None:
+                print("Using cache")
                 dist_value = global_local_rank
             else:
+                print("Not using cache")
                 dist_value = rt.local_ordinal()
                 global_local_rank = dist_value
         elif env_var == 'RANK':
             if global_rank is not None:
+                print("Using cache")
                 dist_value = global_rank
             else:
+                print("Not using cache")
                 dist_value = rt.global_ordinal()
                 global_rank = dist_value
         elif env_var == 'LOCAL_WORLD_SIZE':
             if global_local_world_size is not None:
+                print("Using cache")
                 dist_value = global_local_world_size
             else:
+                print("Not using cache")
                 dist_value = rt.local_device_count()
                 global_local_world_size = dist_value
         elif env_var == 'NODE_RANK':
             if global_node_rank is not None:
+                print("Using cache")
                 dist_value = global_node_rank
             else:
+                print("Not using cache")
                 dist_value = rt.host_index()
                 global_node_rank = dist_value
         if fetch_fn_name is not None and dist.is_initialized():
