@@ -333,7 +333,7 @@ def all_reduce(
     """
     if dist.is_available() and dist.is_initialized():
         if rt.using_pjrt():
-            xm.all_reduce(reduce_operation.lower(), tensor)
+            xm.all_reduce(reduce_operation.lower(), tensor, pin_layout=False)
         else:
             reduce_op = getattr(dist.ReduceOp, reduce_operation.upper())
             dist.all_reduce(tensor, op=reduce_op)
@@ -422,7 +422,7 @@ def all_gather(tensor: torch.Tensor) -> Sequence[torch.Tensor]:
     if dist.is_available() and dist.is_initialized():
         obj_gather_list = [torch.zeros_like(tensor) for _ in range(get_world_size())]
         if rt.using_pjrt():
-            obj_gathered = xm.all_gather(tensor, obj_gather_list)
+            obj_gathered = xm.all_gather(tensor, obj_gather_list, pin_layout=False)
             return obj_gathered
         else:
             dist.all_gather(obj_gather_list, tensor)
