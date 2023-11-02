@@ -422,11 +422,10 @@ def all_gather(tensor: torch.Tensor) -> Sequence[torch.Tensor]:
     if dist.is_available() and dist.is_initialized():
         obj_gather_list = [torch.zeros_like(tensor) for _ in range(get_world_size())]
         if rt.using_pjrt():
-            obj_gathered = xm.all_gather(tensor, obj_gather_list, pin_layout=False)
-            return obj_gathered
+            xm.all_gather(tensor, output=obj_gather_list, pin_layout=False)
         else:
             dist.all_gather(obj_gather_list, tensor)
-            return obj_gather_list
+        return obj_gather_list
     world_size = get_world_size()
     if world_size == 1:
         return [tensor]
