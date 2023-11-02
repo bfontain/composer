@@ -286,8 +286,6 @@ def barrier() -> None:
 
     .. seealso:: :func:`torch.distributed.barrier`
     """
-    if rt.using_pjrt():
-        raise RuntimeError('Need for pjrt')    
     if dist.is_available() and dist.is_initialized():
         dist.barrier()
         return
@@ -333,12 +331,12 @@ def all_reduce(
     Returns:
         None: ``tensor`` is modified in-place.
     """
-    if rt.using_pjrt():
-        xm.all_reduce(reduce_operation.lower(), tensor)
-        return
     if dist.is_available() and dist.is_initialized():
-        reduce_op = getattr(dist.ReduceOp, reduce_operation.upper())
-        dist.all_reduce(tensor, op=reduce_op)
+        if rt.using_pjrt():
+            xm.all_reduce(reduce_operation.lower(), tensor)
+        else:
+            reduce_op = getattr(dist.ReduceOp, reduce_operation.upper())
+            dist.all_reduce(tensor, op=reduce_op)
         return
     world_size = get_world_size()
     if world_size == 1:
@@ -421,13 +419,14 @@ def all_gather(tensor: torch.Tensor) -> Sequence[torch.Tensor]:
     Returns:
         Sequence[Tensor]: A sequence of tensors indexed by rank.
     """
-    if rt.using_pjrt():
-        obj_gathered = xm.all_gather(tensor, obj_gather_list)
-        return obj_gathered
     if dist.is_available() and dist.is_initialized():
         obj_gather_list = [torch.zeros_like(tensor) for _ in range(get_world_size())]
-        dist.all_gather(obj_gather_list, tensor)
-        return obj_gather_list
+        if rt.using_pjrt():
+            obj_gathered = xm.all_gather(tensor, obj_gather_list)
+            return obj_gathered
+        else:
+            dist.all_gather(obj_gather_list, tensor)
+            return obj_gather_list
     world_size = get_world_size()
     if world_size == 1:
         return [tensor]
@@ -450,7 +449,7 @@ def all_gather_object(obj: TObj) -> List[TObj]:
         List[TObj]: A list of objects indexed by rank.
     """
     if rt.using_pjrt():
-        raise RuntimeError('Need for pjrt')
+        raise RuntimeError('Need pjrt impl')    
     if dist.is_available() and dist.is_initialized():
         obj_gather_list = [None for _ in range(get_world_size())]
         if is_hpu_installed():
@@ -489,7 +488,7 @@ def is_initialized():
     Returns:
         bool: Whether PyTorch distributed is initialized.
     """
-    return rt.using_pjrt() or dist.is_initialized()
+    return dist.is_initialized()
 
 
 def initialize_dist(device: Union[str, Device], timeout: float = 300.0):
@@ -560,7 +559,7 @@ def initialize_dist(device: Union[str, Device], timeout: float = 300.0):
     dist_env_vars_match_defaults = all(os.environ.get(k, v) == v for (k, v) in dist_env_var_defaults.items())
 
     if rt.using_pjrt():
-        return #dist.init_process_group('xla', init_method='xla://')
+        dist.init_process_group('xla', init_method='xla://')
     elif dist_env_vars_match_defaults:
         # Fill in the remaining single-rank variables
         os.environ.update(dist_env_var_defaults)
@@ -639,7 +638,8 @@ def run_local_rank_zero_first():
     same location.
     """
     if rt.using_pjrt():
-        raise RuntimeError('Need for pjrt')        
+        raise RuntimeError('Need pjrt impl')
+
     if dist.is_available() and dist.is_initialized():
         # hold non-zero ranks until rank zero done
         if get_local_rank() != 0:
