@@ -332,11 +332,8 @@ def all_reduce(
         None: ``tensor`` is modified in-place.
     """
     if dist.is_available() and dist.is_initialized():
-        if rt.using_pjrt():
-            xm.all_reduce(reduce_operation.lower(), tensor, pin_layout=False)
-        else:
-            reduce_op = getattr(dist.ReduceOp, reduce_operation.upper())
-            dist.all_reduce(tensor, op=reduce_op)
+        reduce_op = getattr(dist.ReduceOp, reduce_operation.upper())
+        dist.all_reduce(tensor, op=reduce_op)
         return
     world_size = get_world_size()
     if world_size == 1:
@@ -359,8 +356,6 @@ def broadcast(tensor: torch.Tensor, src: int) -> None:
             and tensor to be used to save received data otherwise.
         src (int): Source rank
     """
-    if rt.using_pjrt():
-        return
     if dist.is_available() and dist.is_initialized():
         dist.broadcast(tensor, src)
         return
@@ -391,8 +386,6 @@ def broadcast_object_list(object_list: List[Any], src: int = 0) -> None:
     Returns:
         None:  ``object_list`` will be modified in-place and set to values of ``object_list`` from the ``src`` rank.
     """
-    if rt.using_pjrt():
-        return
     if dist.is_available() and dist.is_initialized():
         dist.broadcast_object_list(object_list, src)
         # torch.distributed will replace the None's in obj_gather_list with the gathered objects on rank 0
@@ -421,10 +414,7 @@ def all_gather(tensor: torch.Tensor) -> Sequence[torch.Tensor]:
     """
     if dist.is_available() and dist.is_initialized():
         obj_gather_list = [torch.zeros_like(tensor) for _ in range(get_world_size())]
-        if rt.using_pjrt():
-            xm.all_gather(tensor, output=obj_gather_list, pin_layout=False)
-        else:
-            dist.all_gather(obj_gather_list, tensor)
+        dist.all_gather(obj_gather_list, tensor)
         return obj_gather_list
     world_size = get_world_size()
     if world_size == 1:
@@ -447,8 +437,6 @@ def all_gather_object(obj: TObj) -> List[TObj]:
     Returns:
         List[TObj]: A list of objects indexed by rank.
     """
-    if rt.using_pjrt():
-        raise RuntimeError('Need pjrt impl')    
     if dist.is_available() and dist.is_initialized():
         obj_gather_list = [None for _ in range(get_world_size())]
         if is_hpu_installed():
