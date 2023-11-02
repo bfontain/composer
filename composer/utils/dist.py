@@ -188,9 +188,9 @@ def _get_distributed_config_var(
     
     if rt.using_pjrt():
         if env_var in ['WORLD_SIZE', 'LOCAL_RANK', 'RANK', 'LOCAL_WORLD_SIZE', 'NODE_RANK']:
-            if env_var in os.environ:
+            if env_var + "_CACHE" in os.environ:
                 print('Using cached')
-                dist_value = int(os.environ[env_var])
+                dist_value = int(os.environ[env_var + "_CACHE"])
             else:
                 print('Not cached')
                 if env_var == 'WORLD_SIZE':
@@ -203,7 +203,7 @@ def _get_distributed_config_var(
                     dist_value = rt.local_device_count()
                 elif env_var == 'NODE_RANK':
                     dist_value = rt.host_index()
-                os.environ[env_var] = str(dist_value)
+                os.environ[env_var + "_CACHE"] = str(dist_value)
             if fetch_fn_name is not None and dist.is_initialized():
                 fetched_value = int(getattr(dist, fetch_fn_name)())
                 if fetched_value != dist_value:
