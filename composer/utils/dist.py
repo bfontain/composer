@@ -176,6 +176,12 @@ class MissingEnvironmentError(Exception):
     pass
 
 
+global_world_size = None
+global_local_rank = None
+global_rank = None
+global_local_world_size = None
+global_node_rank = None
+
 def _get_distributed_config_var(
     env_var: str,
     human_name: str,
@@ -185,18 +191,43 @@ def _get_distributed_config_var(
     if not dist.is_available():
         return default
 
+    global global_world_size
+    global global_local_rank
+    global global_rank
+    global global_local_world_size
+    global global_node_rank
     
     if rt.using_pjrt():
         if env_var == 'WORLD_SIZE':
-            dist_value = rt.global_device_count()
+            if global_world_size is not None:
+                dist_value = global_world_size
+            else:
+                dist_value = rt.global_device_count()
+                global_world_size = dist_value
         elif env_var == 'LOCAL_RANK':
-            dist_value = rt.local_ordinal()
+            if global_local_rank is not None:
+                dist_value = global_local_rank
+            else:
+                dist_value = rt.local_ordinal()
+                global_local_rank = dist_value
         elif env_var == 'RANK':
-            dist_value = rt.global_ordinal()
+            if global_rank is not None:
+                dist_value = global_rank
+            else:
+                dist_value = rt.global_ordinal()
+                global_rank = dist_value
         elif env_var == 'LOCAL_WORLD_SIZE':
-            dist_value = rt.local_device_count()
+            if global_local_world_size is not None:
+                dist_value = global_local_world_size
+            else:
+                dist_value = rt.local_device_count()
+                global_local_world_size = dist_value
         elif env_var == 'NODE_RANK':
-            dist_value = rt.host_index()
+            if global_node_rank is not None:
+                dist_value = global_node_rank
+            else:
+                dist_value = rt.host_index()
+                global_node_rank = dist_value
         if fetch_fn_name is not None and dist.is_initialized():
             fetched_value = int(getattr(dist, fetch_fn_name)())
             if fetched_value != dist_value:
