@@ -185,31 +185,28 @@ def _get_distributed_config_var(
     if not dist.is_available():
         return default
 
-    if env_var in os.environ:
-        print("Using environment variable")
-        return int(os.environ[env_var])
-
-    print("Not using environment varible")
     if rt.using_pjrt():
-        if env_var == 'WORLD_SIZE':
-            dist_value = rt.global_device_count()
-            os.environ[env_var] = str(dist_value)
-        elif env_var == 'LOCAL_RANK':
-            dist_value = rt.local_ordinal()
-            os.environ[env_var] = str(dist_value)
-        elif env_var == 'RANK':
-            dist_value = rt.global_ordinal()
-            os.environ[env_var] = str(dist_value)
-        elif env_var == 'LOCAL_WORLD_SIZE':
-            dist_value = rt.local_device_count()
-            os.environ[env_var] = str(dist_value)
-        elif env_var == 'NODE_RANK':
-            dist_value = rt.host_index()
-            os.environ[env_var] = str(dist_value)
-        if fetch_fn_name is not None and dist.is_initialized():
-            fetched_value = int(getattr(dist, fetch_fn_name)())
-            if fetched_value != dist_value:
-                raise RuntimeError(f"Configured Torch distribution value does not agree with XLA's {env_var}, {dist_value}, {env_value}")
+        if env_var in ['WORLD_SIZE', 'LOCAL_RANK', 'RANK', 'LOCAL_WORLD_SIZE', 'NODE_RANK']:
+            if env_var in os.environ:
+                print('Using cached')
+                dist_value = int(os.environ[env_var])
+            else:
+                print('Not cached')
+                if env_var == 'WORLD_SIZE':
+                    dist_value = rt.global_device_count()
+                elif env_var == 'LOCAL_RANK':
+                    dist_value = rt.local_ordinal()
+                elif env_var == 'RANK':
+                    dist_value = rt.global_ordinal()
+                elif env_var == 'LOCAL_WORLD_SIZE':
+                    dist_value = rt.local_device_count()
+                elif env_var == 'NODE_RANK':
+                    dist_value = rt.host_index()
+                os.environ[env_var] = str(dist_value)
+            if fetch_fn_name is not None and dist.is_initialized():
+                fetched_value = int(getattr(dist, fetch_fn_name)())
+                if fetched_value != dist_value:
+                    raise RuntimeError(f"Configured Torch distribution value does not agree with XLA's {env_var}, {dist_value}, {env_value}")
 
     if dist.is_initialized() and fetch_fn_name is not None:
         dist_value = int(getattr(dist, fetch_fn_name)())
@@ -220,6 +217,9 @@ def _get_distributed_config_var(
                                    f'{dist_value} for {human_name}, but environment variable '
                                    f'{env_var} has value {env_value}.')
         return dist_value
+
+    if env_var in os.environ:
+        return int(os.environ[env_var])        
 
     if dist.is_initialized():
         raise MissingEnvironmentError('Torch distributed is initialized but environment variable '
