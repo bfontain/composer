@@ -624,9 +624,6 @@ def run_local_rank_zero_first():
     ranks attempt to download the dataset to the
     same location.
     """
-    if rt.using_pjrt():
-        raise RuntimeError('Need pjrt impl')
-
     if dist.is_available() and dist.is_initialized():
         # hold non-zero ranks until rank zero done
         if get_local_rank() != 0:
