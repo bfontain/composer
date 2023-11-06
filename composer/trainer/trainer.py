@@ -2474,6 +2474,9 @@ class Trainer:
                 # Scale loss based on the number of samples in the microbatch to maintain gradient numerics
                 if rt.using_pjrt():
                     microbatch_loss.backward()
+                    # Mark step here so that we cut the microbatching loop into pieces.
+                    # Otherwise the loop is unrolled, defeating the purpose of microbatching.
+                    xm.mark_step()
                 else:
                     microbatch_loss.mul_(microbatch_num_samples / current_batch_size)
                     microbatch_loss.backward(create_graph=self._backwards_create_graph)
