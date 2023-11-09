@@ -546,7 +546,11 @@ def initialize_dist(device: Union[str, Device], timeout: float = 300.0):
     dist_env_vars_match_defaults = all(os.environ.get(k, v) == v for (k, v) in dist_env_var_defaults.items())
 
     if rt.using_pjrt():
-        dist.init_process_group('xla', init_method='xla://')
+        dist.init_process_group('xla', init_method='xla://', timeout=datetime.timedelta(seconds=60))
+        import time
+        print("Sleep 30 seconds for the cluster to startup")
+        time.sleep(30)
+        print("Cluster setup sleep complete")
     elif dist_env_vars_match_defaults:
         # Fill in the remaining single-rank variables
         os.environ.update(dist_env_var_defaults)
